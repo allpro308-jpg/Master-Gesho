@@ -1,0 +1,102 @@
+const sharedTypography = {
+  heroValue: { fontSize: 48, fontWeight: '700' as const, fontFamily: 'Cairo_700Bold' },
+  title: { fontSize: 28, fontWeight: '700' as const, fontFamily: 'Cairo_700Bold' },
+  subtitle: { fontSize: 20, fontWeight: '600' as const, fontFamily: 'Cairo_600SemiBold' },
+  sectionHeader: { fontSize: 18, fontWeight: '700' as const, fontFamily: 'Cairo_700Bold' },
+  cardTitle: { fontSize: 16, fontWeight: '600' as const, fontFamily: 'Cairo_600SemiBold' },
+  cardValue: { fontSize: 24, fontWeight: '700' as const, fontFamily: 'Cairo_700Bold' },
+  body: { fontSize: 15, fontWeight: '400' as const, fontFamily: 'Cairo_400Regular' },
+  caption: { fontSize: 13, fontWeight: '400' as const, fontFamily: 'Cairo_400Regular' },
+  small: { fontSize: 11, fontWeight: '500' as const, fontFamily: 'Cairo_500Medium' },
+  badge: { fontSize: 12, fontWeight: '600' as const, fontFamily: 'Cairo_600SemiBold' },
+  button: { fontSize: 16, fontWeight: '600' as const, fontFamily: 'Cairo_600SemiBold' },
+  metric: { fontSize: 32, fontWeight: '700' as const, fontFamily: 'Cairo_700Bold' },
+};
+
+const sharedValues = {
+  fontFamily: 'Cairo_400Regular',
+  fontFamilyMedium: 'Cairo_500Medium',
+  fontFamilySemiBold: 'Cairo_600SemiBold',
+  fontFamilyBold: 'Cairo_700Bold',
+  spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32 },
+  borderRadius: { small: 8, medium: 12, large: 16, xl: 20, full: 9999 },
+  categoryColors: {
+    'كتابة بالذكاء': '#8B5CF6',
+    'أدوات الصور': '#EC4899',
+    'أدوات البيانات': '#3B82F6',
+    'أدوات المطورين': '#22C55E',
+    'أدوات مالية': '#F59E0B',
+    'الإنتاجية': '#06B6D4',
+    'التصميم': '#F43F5E',
+    'التسويق': '#14B8A6',
+  } as Record<string, string>,
+};
+
+export const darkTheme = {
+  ...sharedValues,
+  mode: 'dark' as const,
+  primary: '#3B82F6',
+  primaryLight: '#60A5FA',
+  primaryDark: '#2563EB',
+  accent: '#22C55E',
+  accentLight: '#4ADE80',
+  accentDark: '#16A34A',
+  background: '#0B1120',
+  backgroundSecondary: '#111827',
+  surface: '#1E293B',
+  surfaceLight: '#334155',
+  textPrimary: '#F8FAFC',
+  textSecondary: '#94A3B8',
+  textMuted: '#64748B',
+  success: '#22C55E',
+  error: '#EF4444',
+  warning: '#F59E0B',
+  star: '#FBBF24',
+  upvote: '#F97316',
+  trending: '#EF4444',
+  border: '#1E293B',
+  borderLight: '#334155',
+  tabBarBg: '#0D1525',
+  typography: sharedTypography,
+  shadows: {
+    card: { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+    elevated: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
+  },
+};
+
+export const lightTheme = {
+  ...sharedValues,
+  mode: 'light' as const,
+  primary: '#2563EB',
+  primaryLight: '#3B82F6',
+  primaryDark: '#1D4ED8',
+  accent: '#16A34A',
+  accentLight: '#22C55E',
+  accentDark: '#15803D',
+  background: '#F1F5F9',
+  backgroundSecondary: '#E2E8F0',
+  surface: '#FFFFFF',
+  surfaceLight: '#F8FAFC',
+  textPrimary: '#0F172A',
+  textSecondary: '#475569',
+  textMuted: '#94A3B8',
+  success: '#16A34A',
+  error: '#DC2626',
+  warning: '#D97706',
+  star: '#F59E0B',
+  upvote: '#EA580C',
+  trending: '#DC2626',
+  border: '#E2E8F0',
+  borderLight: '#CBD5E1',
+  tabBarBg: '#FFFFFF',
+  typography: sharedTypography,
+  shadows: {
+    card: { shadowColor: '#64748B', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 2 },
+    elevated: { shadowColor: '#64748B', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.16, shadowRadius: 10, elevation: 4 },
+  },
+};
+
+export type AppTheme = typeof darkTheme;
+
+// Default export for backward compatibility during migration
+export const theme = darkTheme;
