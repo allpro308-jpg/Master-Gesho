@@ -24,9 +24,11 @@ const QUICK_ACTIONS = [
   { id: 'appearance', icon: 'palette', label: 'الثيمات والمظهر', color: '#A78BFA', route: '/admin-appearance' },
   { id: 'home_builder', icon: 'home', label: 'منشئ الصفحة الرئيسية', color: '#3B82F6', route: '/admin-home-builder' },
   { id: 'navigation', icon: 'navigation', label: 'منشئ التنقل', color: '#10B981', route: '/admin-navigation' },
+  { id: 'content', icon: 'article', label: 'إدارة المحتوى', color: '#F97316', route: '/admin-content' },
+  { id: 'analytics', icon: 'bar-chart', label: 'تحليلات المنصة', color: '#06B6D4', route: '/admin-analytics' },
   { id: 'flags', icon: 'toggle-on', label: 'إشارات الميزات', color: '#F59E0B', route: '/admin-flags' },
   { id: 'banners', icon: 'campaign', label: 'البانرات والإعلانات', color: '#EC4899', route: '/admin-banners' },
-  { id: 'users', icon: 'people', label: 'إدارة المستخدمين', color: '#F97316', route: '/admin' },
+  { id: 'users', icon: 'people', label: 'إدارة المستخدمين', color: '#64748B', route: '/admin' },
 ];
 
 export default function AdminDashboard() {

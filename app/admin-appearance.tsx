@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  ActivityIndicator, Alert,
+  ActivityIndicator, Modal, TextInput,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -17,6 +17,7 @@ import { useAuth, useAlert } from '@/template';
 import { getSupabaseClient } from '@/template';
 import {
   fetchAllThemes, activateTheme, deleteTheme, publishTheme,
+  createTheme, DEFAULT_TOKENS,
   AppTheme as DbAppTheme,
 } from '../services/themeEngineService';
 
@@ -38,6 +39,10 @@ export default function AppearanceStudio() {
   const [themes, setThemes] = useState<DbAppTheme[]>([]);
   const [loading, setLoading] = useState(true);
   const [activating, setActivating] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
+  const [importJson, setImportJson] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
 
   const s = useMemo(() => createStyles(theme), [theme]);
 
@@ -96,6 +101,62 @@ export default function AppearanceStudio() {
     await load();
   }, [user?.id, isAdmin, load]);
 
+  // ── Export Theme JSON ──────────────────────────────────────────────────────
+  const handleExport = useCallback((t: DbAppTheme) => {
+    Haptics.selectionAsync();
+    const exportData = {
+      name: t.name,
+      slug: t.slug,
+      description: t.description,
+      darkMode: t.darkMode,
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      colors: t.tokens,
+    };
+    const json = JSON.stringify(exportData, null, 2);
+    // Share as text (JSON)
+    import('react-native').then(({ Share }) => {
+      Share.share({ message: json, title: `${t.name}.theme.json` });
+    });
+  }, []);
+
+  // ── Import Theme JSON ──────────────────────────────────────────────────────
+  const handleImport = useCallback(async () => {
+    if (!user?.id || !isAdmin) return;
+    setImportError('');
+    let parsed: any;
+    try {
+      parsed = JSON.parse(importJson.trim());
+    } catch {
+      setImportError('JSON غير صالح — تحقق من التنسيق'); return;
+    }
+    // Validate required fields
+    if (!parsed.name || typeof parsed.name !== 'string') {
+      setImportError('حقل name مطلوب'); return;
+    }
+    const colors = parsed.colors || parsed.tokens || {};
+    if (!colors.primary || !colors.background) {
+      setImportError('يجب توفير primary و background في colors'); return;
+    }
+    setImporting(true);
+    const { id, error } = await createTheme({
+      name: parsed.name,
+      description: parsed.description || '',
+      darkMode: parsed.darkMode || false,
+      tokens: { ...DEFAULT_TOKENS, ...colors },
+    }, user.id);
+    if (error) {
+      setImportError(error);
+    } else {
+      setShowImport(false);
+      setImportJson('');
+      setImportError('');
+      await load();
+      showAlert('تم الاستيراد', `تم إنشاء ثيم "${parsed.name}" بنجاح`);
+    }
+    setImporting(false);
+  }, [user?.id, isAdmin, importJson, load, showAlert]);
+
   if (loading || isAdmin === null) {
     return (
       <SafeAreaView edges={['top']} style={[s.container, { alignItems: 'center', justifyContent: 'center' }]}>
@@ -129,13 +190,22 @@ export default function AppearanceStudio() {
           <Text style={[s.title, { color: theme.textPrimary }]}>استوديو المظهر</Text>
           <Text style={[s.sub, { color: theme.textMuted }]}>{themes.length} ثيم متاح</Text>
         </View>
-        <Pressable
-          onPress={() => { Haptics.selectionAsync(); router.push('/admin-theme-builder' as any); }}
-          style={[s.btn, { backgroundColor: theme.primary }]}
-        >
-          <MaterialIcons name="add" size={16} color="#FFF" />
-          <Text style={s.btnText}>ثيم جديد</Text>
-        </Pressable>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); setShowImport(true); }}
+            style={[s.btn, { backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }]}
+          >
+            <MaterialIcons name="upload" size={16} color={theme.textSecondary} />
+            <Text style={[s.btnText, { color: theme.textSecondary }]}>استيراد</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); router.push('/admin-theme-builder' as any); }}
+            style={[s.btn, { backgroundColor: theme.primary }]}
+          >
+            <MaterialIcons name="add" size={16} color="#FFF" />
+            <Text style={s.btnText}>ثيم جديد</Text>
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32 }}>
@@ -230,6 +300,12 @@ export default function AppearanceStudio() {
                       <MaterialIcons name="publish" size={15} color="#10B981" />
                     </Pressable>
                   )}
+                  <Pressable
+                    onPress={() => handleExport(t)}
+                    style={[s.iconAction, { backgroundColor: theme.background, borderColor: theme.border }]}
+                  >
+                    <MaterialIcons name="download" size={15} color={theme.textSecondary} />
+                  </Pressable>
                   {!t.isDefault && (
                     <Pressable
                       onPress={() => handleDelete(t)}
@@ -244,9 +320,85 @@ export default function AppearanceStudio() {
           </Animated.View>
         ))}
       </ScrollView>
+      {/* Import Modal */}
+      <Modal visible={showImport} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView edges={['top']} style={[imp.modal, { backgroundColor: theme.background }]}>
+          <View style={[imp.header, { borderBottomColor: theme.border }]}>
+            <Pressable onPress={() => { setShowImport(false); setImportJson(''); setImportError(''); }}>
+              <Text style={[imp.cancel, { color: theme.textSecondary }]}>إلغاء</Text>
+            </Pressable>
+            <Text style={[imp.title, { color: theme.textPrimary }]}>استيراد ثيم</Text>
+            <Pressable onPress={handleImport} disabled={importing || !importJson.trim()}>
+              {importing
+                ? <ActivityIndicator size="small" color={theme.primary} />
+                : <Text style={[imp.save, { color: importJson.trim() ? theme.primary : theme.textMuted }]}>استيراد</Text>}
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 16, gap: 14 }}>
+            <View style={[imp.infoBox, { backgroundColor: theme.primary + '12', borderColor: theme.primary + '30' }]}>
+              <MaterialIcons name="info-outline" size={15} color={theme.primary} />
+              <Text style={[imp.infoText, { color: theme.textSecondary }]}>
+                الصق محتوى ملف JSON للثيم. يجب احتواؤه على name وcolors.primary وcolors.background
+              </Text>
+            </View>
+            <Text style={[imp.label, { color: theme.textSecondary }]}>محتوى الـ JSON</Text>
+            <TextInput
+              value={importJson}
+              onChangeText={v => { setImportJson(v); setImportError(''); }}
+              placeholder={`{\n  "name": "ثيمي الجميل",\n  "colors": {\n    "primary": "#3B82F6",\n    "background": "#F8FAFC"\n  }\n}`}
+              placeholderTextColor={theme.textMuted}
+              style={[imp.textarea, { backgroundColor: theme.surface, borderColor: importError ? '#EF4444' : theme.border, color: theme.textPrimary }]}
+              multiline
+              textAlignVertical="top"
+              autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
+              textAlign="left"
+            />
+            {importError ? (
+              <View style={[imp.errorBox, { backgroundColor: '#EF444415', borderColor: '#EF444430' }]}>
+                <MaterialIcons name="error" size={14} color="#EF4444" />
+                <Text style={imp.errorText}>{importError}</Text>
+              </View>
+            ) : null}
+            <Text style={[imp.exampleTitle, { color: theme.textMuted }]}>مثال على هيكل JSON</Text>
+            <View style={[imp.code, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[imp.codeText, { color: theme.textSecondary }]}>{`{
+  "name": "ثيم الليل",
+  "darkMode": true,
+  "description": "وصف اختياري",
+  "colors": {
+    "primary": "#3B82F6",
+    "background": "#0F172A",
+    "surface": "#1E293B",
+    "textPrimary": "#F1F5F9",
+    "border": "#334155"
+  }
+}`}</Text>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const imp = StyleSheet.create({
+  modal: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
+  title: { fontSize: 16, fontFamily: 'Cairo_700Bold' },
+  cancel: { fontSize: 14, fontFamily: 'Cairo_500Medium' },
+  save: { fontSize: 14, fontFamily: 'Cairo_700Bold' },
+  infoBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
+  infoText: { flex: 1, fontSize: 12, fontFamily: 'Cairo_400Regular', lineHeight: 18 },
+  label: { fontSize: 12, fontFamily: 'Cairo_600SemiBold' },
+  textarea: { borderRadius: 12, borderWidth: 1, padding: 12, minHeight: 160, fontSize: 12, fontFamily: 'Cairo_400Regular' },
+  errorBox: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderRadius: 10, borderWidth: 1 },
+  errorText: { fontSize: 12, fontFamily: 'Cairo_500Medium', color: '#EF4444', flex: 1 },
+  exampleTitle: { fontSize: 11, fontFamily: 'Cairo_500Medium' },
+  code: { borderRadius: 12, borderWidth: 1, padding: 12 },
+  codeText: { fontSize: 11, fontFamily: 'Cairo_400Regular', lineHeight: 18 },
+});
 
 const createStyles = (theme: any) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.background },

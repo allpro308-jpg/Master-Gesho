@@ -786,7 +786,7 @@ const STATUS_CONFIG: Record<string,{label:string;color:string;icon:any}> = {
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { theme, isDark, toggleTheme } = useTheme();
+  const { theme, isDark, toggleTheme, activeDbThemeName } = useTheme();
   const { savedToolIds, votedToolIds, userRatings } = useAppContext();
   const { user, logout } = useAuth();
   const { showAlert } = useAlert();
@@ -865,6 +865,7 @@ export default function ProfileScreen() {
   const accountSettings = [
     {icon:'person',label:'تعديل الملف الشخصي',desc:'الاسم والبريد الإلكتروني',action:()=>router.push('/edit-profile')},
     {icon:'shield',label:'الخصوصية والأمان',desc:'كلمة المرور، تسجيل الخروج',action:()=>router.push('/change-password')},
+    {icon:'palette',label:'المظهر والثيمات',desc:activeDbThemeName?`الثيم النشط: ${activeDbThemeName}`:'اختر ثيم التطبيق',action:()=>router.push('/appearance')},
     {icon:'admin-panel-settings',label:'لوحة التحكم',desc:'إدارة المنصة',action:()=>router.push('/admin')},
   ];
   const developerSettings = [

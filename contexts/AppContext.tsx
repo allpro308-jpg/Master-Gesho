@@ -1,10 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/template';
 import { Tool, Comment } from '../services/mockData';
 import {
   fetchTools, fetchSavedToolIds, fetchVotedToolIds, fetchUserRatings,
   fetchComments as fetchCommentsApi, toggleSave, toggleVote, upsertRating, addCommentToDb,
 } from '../services/toolsService';
+import { fetchActiveTheme } from '../services/themeEngineService';
+import { useTheme } from './ThemeContext';
+
+const DB_THEME_KEY = '@app_db_theme';
 
 interface AppContextType {
   tools: Tool[];
@@ -41,6 +46,7 @@ const AppContext = createContext<AppContextType>({} as AppContextType);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const { applyDbTheme } = useTheme();
   const [tools, setTools] = useState<Tool[]>([]);
   const [savedToolIds, setSavedToolIds] = useState<string[]>([]);
   const [votedToolIds, setVotedToolIds] = useState<string[]>([]);
@@ -49,6 +55,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('الكل');
   const [loading, setLoading] = useState(true);
+
+  // ── Load active DB theme on startup ────────────────────────────────────────
+  useEffect(() => {
+    const syncTheme = async () => {
+      try {
+        const activeTheme = await fetchActiveTheme();
+        if (!activeTheme) return;
+        // Check if different from locally stored
+        const stored = await AsyncStorage.getItem(DB_THEME_KEY);
+        const storedName = stored ? (JSON.parse(stored).name || null) : null;
+        if (storedName !== activeTheme.name) {
+          applyDbTheme({ ...(activeTheme.tokens as any), _name: activeTheme.name });
+        }
+      } catch {}
+    };
+    syncTheme();
+  }, []);
 
   const refreshTools = useCallback(() => {
     fetchTools().then(t => setTools(t));
