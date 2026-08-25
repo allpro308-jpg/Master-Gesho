@@ -12,8 +12,9 @@ import { MaterialIcons } from '@expo/vector-icons';
 import Animated, { FadeInDown, ZoomIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, ThemePreference } from '../contexts/ThemeContext';
 import { useAlert } from '@/template';
+import { useColorScheme } from 'react-native';
 import { fetchAllThemes, AppTheme as DbTheme } from '../services/themeEngineService';
 
 function ThemePreview({ tokens, name }: { tokens: any; name: string }) {
@@ -57,6 +58,7 @@ export default function AppearanceScreen() {
   const [loading, setLoading] = useState(true);
   const [previewTheme, setPreviewTheme] = useState<DbTheme | null>(null);
   const [applying, setApplying] = useState<string | null>(null);
+  const { themePreference, setThemePreference } = useTheme();
 
   const s = useMemo(() => createStyles(theme), [theme]);
 
@@ -128,6 +130,45 @@ export default function AppearanceScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 32, gap: 12 }}>
+        {/* System Theme Preference */}
+        <Animated.View entering={FadeInDown.duration(280)} style={[{ backgroundColor: theme.surface, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.border, gap: 10 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <MaterialIcons name="brightness-auto" size={18} color={theme.primary} />
+            <Text style={{ fontSize: 15, fontFamily: 'Cairo_700Bold', color: theme.textPrimary, flex: 1 }}>إعداد الوضع</Text>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {([
+              { val: 'light' as ThemePreference, label: 'فاتح', icon: 'light-mode' },
+              { val: 'dark' as ThemePreference, label: 'داكن', icon: 'dark-mode' },
+              { val: 'system' as ThemePreference, label: 'تلقائي', icon: 'brightness-auto' },
+            ]).map(opt => {
+              const isActive = themePreference === opt.val;
+              return (
+                <Pressable
+                  key={opt.val}
+                  onPress={() => { Haptics.selectionAsync(); setThemePreference(opt.val); }}
+                  style={[{
+                    flex: 1, alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 12,
+                    backgroundColor: isActive ? theme.primary + '18' : theme.background,
+                    borderWidth: 1.5,
+                    borderColor: isActive ? theme.primary + '60' : theme.border,
+                  }]}
+                >
+                  <MaterialIcons name={opt.icon as any} size={20} color={isActive ? theme.primary : theme.textMuted} />
+                  <Text style={{ fontSize: 11, fontFamily: isActive ? 'Cairo_700Bold' : 'Cairo_500Medium', color: isActive ? theme.primary : theme.textMuted }}>{opt.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {themePreference === 'system' && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 }}>
+              <MaterialIcons name="info-outline" size={13} color={theme.textMuted} />
+              <Text style={{ fontSize: 11, fontFamily: 'Cairo_400Regular', color: theme.textMuted }}>
+                يتبع إعدادات جهازك تلقائياً
+              </Text>
+            </View>
+          )}
+        </Animated.View>
         {/* Active Theme Banner */}
         {activeDbThemeName && (
           <Animated.View entering={FadeInDown.duration(300)} style={[s.activeBanner, { backgroundColor: theme.primary + '15', borderColor: theme.primary + '40' }]}>

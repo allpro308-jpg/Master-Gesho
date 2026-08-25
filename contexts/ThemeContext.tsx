@@ -1,11 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useColorScheme } from 'react-native';
 import { darkTheme, lightTheme, AppTheme } from '../constants/theme';
+
+export type ThemePreference = 'dark' | 'light' | 'system';
 
 interface ThemeContextType {
   theme: AppTheme;
   isDark: boolean;
+  themePreference: ThemePreference;
   toggleTheme: () => void;
+  setThemePreference: (pref: ThemePreference) => void;
   applyDbTheme: (tokens: Partial<AppTheme>) => void;
   clearDbTheme: () => void;
   activeDbThemeName: string | null;
@@ -13,21 +18,33 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: darkTheme, isDark: true,
-  toggleTheme: () => {}, applyDbTheme: () => {}, clearDbTheme: () => {},
+  themePreference: 'dark',
+  toggleTheme: () => {}, setThemePreference: () => {}, applyDbTheme: () => {}, clearDbTheme: () => {},
   activeDbThemeName: null,
 });
 
 const THEME_KEY = '@nextools_theme_mode';
 const DB_THEME_KEY = '@app_db_theme';
+// Value stored: 'dark' | 'light' | 'system'
+const THEME_PREF_KEY = '@app_theme_preference';
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [isDark, setIsDark] = useState(true);
+  const systemColorScheme = useColorScheme();
+  const [themePreference, setThemePreferenceState] = useState<ThemePreference>('dark');
   const [dbTokens, setDbTokens] = useState<Partial<AppTheme> | null>(null);
   const [activeDbThemeName, setActiveDbThemeName] = useState<string | null>(null);
 
   useEffect(() => {
-    AsyncStorage.getItem(THEME_KEY).then(val => {
-      if (val === 'light') setIsDark(false);
+    // Load preference (supports old 'dark'/'light' and new 'system')
+    AsyncStorage.getItem(THEME_PREF_KEY).then(val => {
+      if (val === 'light' || val === 'dark' || val === 'system') {
+        setThemePreferenceState(val as ThemePreference);
+      } else {
+        // Fallback: check old key
+        AsyncStorage.getItem(THEME_KEY).then(old => {
+          if (old === 'light') setThemePreferenceState('light');
+        });
+      }
     }).catch(() => {});
     // Load persisted DB theme
     AsyncStorage.getItem(DB_THEME_KEY).then(val => {
@@ -41,13 +58,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }).catch(() => {});
   }, []);
 
-  const toggleTheme = useCallback(() => {
-    setIsDark(prev => {
-      const next = !prev;
-      AsyncStorage.setItem(THEME_KEY, next ? 'dark' : 'light');
-      return next;
-    });
+  // Resolved isDark — system follows device
+  const isDark = useMemo(() => {
+    if (themePreference === 'system') return systemColorScheme === 'dark';
+    return themePreference === 'dark';
+  }, [themePreference, systemColorScheme]);
+
+  const setThemePreference = useCallback((pref: ThemePreference) => {
+    setThemePreferenceState(pref);
+    AsyncStorage.setItem(THEME_PREF_KEY, pref);
   }, []);
+
+  const toggleTheme = useCallback(() => {
+    setThemePreference(isDark ? 'light' : 'dark');
+  }, [isDark, setThemePreference]);
 
   const applyDbTheme = useCallback((tokens: Partial<AppTheme> & { _name?: string }) => {
     const { _name, ...rest } = tokens as any;
@@ -69,7 +93,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [isDark, dbTokens]);
 
   return (
-    <ThemeContext.Provider value={{ theme, isDark, toggleTheme, applyDbTheme, clearDbTheme, activeDbThemeName }}>
+    <ThemeContext.Provider value={{ theme, isDark, themePreference, toggleTheme, setThemePreference, applyDbTheme, clearDbTheme, activeDbThemeName }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -40,7 +40,7 @@ function InnerLayout() {
           <Stack.Screen name="change-password" options={{ presentation: 'card', animation: 'slide_from_bottom' }} />
           <Stack.Screen name="tags" options={{ presentation: 'card', animation: 'slide_from_right' }} />
           <Stack.Screen name="developer-info" options={{ presentation: 'card', animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="about" options={{ presentation: 'card', animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="admin-users" options={{ presentation: 'card', animation: 'slide_from_right' }} />
           <Stack.Screen name="achievements" options={{ presentation: 'card', animation: 'slide_from_right' }} />
           <Stack.Screen name="news" options={{ presentation: 'card', animation: 'slide_from_right' }} />
           <Stack.Screen name="post/[id]" options={{ presentation: 'card', animation: 'slide_from_right' }} />

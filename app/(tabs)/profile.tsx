@@ -27,6 +27,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAppContext } from '../../contexts/AppContext';
 import { useAuth, useAlert } from '@/template';
 import { useAchievements } from '../../contexts/AchievementsContext';
+import { useNotifications } from '../../contexts/NotificationsContext';
 import { fetchUserSubmittedTools } from '../../services/toolsService';
 import { Tool } from '../../services/mockData';
 import { TIER_COLORS, TIER_LABELS, NotificationSettings } from '../../services/achievementsService';
@@ -795,6 +796,7 @@ export default function ProfileScreen() {
   const {
     unlockedAchievements, totalPoints, levelInfo, streakData, unreadNotifCount,
   } = useAchievements();
+  const { pendingToolsCount } = useNotifications();
 
   const [activeTab, setActiveTab] = useState<ProfileTab>('activity');
   const [submittedTools, setSubmittedTools] = useState<Tool[]>([]);
@@ -866,7 +868,7 @@ export default function ProfileScreen() {
     {icon:'person',label:'تعديل الملف الشخصي',desc:'الاسم والبريد الإلكتروني',action:()=>router.push('/edit-profile')},
     {icon:'shield',label:'الخصوصية والأمان',desc:'كلمة المرور، تسجيل الخروج',action:()=>router.push('/change-password')},
     {icon:'palette',label:'المظهر والثيمات',desc:activeDbThemeName?`الثيم النشط: ${activeDbThemeName}`:'اختر ثيم التطبيق',action:()=>router.push('/appearance')},
-    {icon:'admin-panel-settings',label:'لوحة التحكم',desc:'إدارة المنصة',action:()=>router.push('/admin')},
+    {icon:'admin-panel-settings',label:'لوحة التحكم',desc:pendingToolsCount > 0 ? `⚠️ ${pendingToolsCount} أدوات معلقة` : 'إدارة المنصة',action:()=>router.push('/admin')},
   ];
   const developerSettings = [
     {icon:'add-circle',label:'إضافة أداة',desc:'شارك أداتك مع المجتمع',action:()=>router.push('/submit-tool')},

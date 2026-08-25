@@ -28,7 +28,7 @@ const QUICK_ACTIONS = [
   { id: 'analytics', icon: 'bar-chart', label: 'تحليلات المنصة', color: '#06B6D4', route: '/admin-analytics' },
   { id: 'flags', icon: 'toggle-on', label: 'إشارات الميزات', color: '#F59E0B', route: '/admin-flags' },
   { id: 'banners', icon: 'campaign', label: 'البانرات والإعلانات', color: '#EC4899', route: '/admin-banners' },
-  { id: 'users', icon: 'people', label: 'إدارة المستخدمين', color: '#64748B', route: '/admin' },
+  { id: 'users', icon: 'people', label: 'إدارة المستخدمين', color: '#64748B', route: '/admin-users' },
 ];
 
 export default function AdminDashboard() {

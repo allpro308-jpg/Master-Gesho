@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  ActivityIndicator, Dimensions, RefreshControl,
+  ActivityIndicator, Dimensions, RefreshControl, Share,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -70,6 +70,7 @@ export default function AdminAnalyticsScreen() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const s = useMemo(() => createStyles(theme), [theme]);
 
@@ -153,6 +154,73 @@ export default function AdminAnalyticsScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }, [loadData]);
 
+  const handleExport = useCallback(async () => {
+    if (!data) return;
+    setExporting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+    const timeStr = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+    const topTools = data.topVotedTools
+      .slice(0, 5)
+      .map((t, i) => `  ${i + 1}. ${t.name} — ${t.votes} صوت (${t.category})`)
+      .join('\n');
+
+    const topDevs = data.topDevelopers
+      .slice(0, 5)
+      .map((d, i) => `  ${i + 1}. ${d.name} — ${d.followers} متابع · ${d.toolsCount} أداة`)
+      .join('\n');
+
+    const topCats = data.categoryBreakdown
+      .slice(0, 5)
+      .map((c, i) => `  ${i + 1}. ${c.name} — ${c.count} أداة`)
+      .join('\n');
+
+    const pricing = data.pricingBreakdown
+      .map(p => `  • ${p.type}: ${p.count} أداة`)
+      .join('\n');
+
+    const report = [
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '     📊 تقرير تحليلات مستر جيشو',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '',
+      `📅 تاريخ التقرير: ${dateStr} — ${timeStr}`,
+      `👤 المسؤول: ${user?.email || 'admin'}`,
+      '',
+      '── الإحصائيات العامة ──────────',
+      `🛠️  إجمالي الأدوات:      ${data.totalTools}`,
+      `👥  إجمالي المستخدمين:   ${data.totalUsers}`,
+      `👍  إجمالي الأصوات:      ${data.totalVotes}`,
+      `💬  إجمالي التعليقات:    ${data.totalComments}`,
+      '',
+      '── أكثر الأدوات تصويتاً ──────',
+      topTools || '  لا توجد بيانات',
+      '',
+      '── أكثر المطورين متابعة ──────',
+      topDevs || '  لا توجد بيانات',
+      '',
+      '── توزيع الفئات ───────────────',
+      topCats || '  لا توجد بيانات',
+      '',
+      '── نماذج التسعير ──────────────',
+      pricing || '  لا توجد بيانات',
+      '',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      '🤖 منصة مستر جيشو — mistergisho.app',
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    ].join('\n');
+
+    try {
+      await Share.share({
+        message: report,
+        title: `تقرير مستر جيشو — ${dateStr}`,
+      });
+    } catch (e) { console.warn(e); }
+    setExporting(false);
+  }, [data, user?.email]);
+
   if (loading || isAdmin === null) {
     return (
       <SafeAreaView edges={['top']} style={[s.container, { alignItems: 'center', justifyContent: 'center' }]}>
@@ -192,6 +260,16 @@ export default function AdminAnalyticsScreen() {
           style={[s.iconBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
         >
           <MaterialIcons name="refresh" size={18} color={theme.textSecondary} />
+        </Pressable>
+        <Pressable
+          onPress={handleExport}
+          disabled={exporting || !data}
+          style={[s.iconBtn, { backgroundColor: theme.primary + '15', borderColor: theme.primary + '40', opacity: (!data || exporting) ? 0.5 : 1 }]}
+        >
+          {exporting
+            ? <ActivityIndicator size="small" color={theme.primary} />
+            : <MaterialIcons name="share" size={18} color={theme.primary} />
+          }
         </Pressable>
       </View>
 
