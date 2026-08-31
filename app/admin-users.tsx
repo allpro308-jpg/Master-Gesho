@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View, Text, ScrollView, Pressable, StyleSheet,
-  ActivityIndicator, TextInput, RefreshControl,
+  ActivityIndicator, TextInput, RefreshControl, Share,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -46,8 +46,50 @@ export default function AdminUsersScreen() {
   const [filter, setFilter] = useState<FilterRole>('all');
   const [sortBy, setSortBy] = useState<SortBy>('newest');
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
-  const s = useMemo(() => createStyles(theme), [theme]);
+  const s = useMemo(() => createStyles(theme), [theme]);  
+
+  const handleExportCSV = useCallback(async () => {
+    if (users.length === 0) return;
+    setExporting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+
+    const header = ['الاسم', 'البريد الإلكتروني', 'الصلاحية', 'محفوظات', 'تصويتات', 'تعليقات', 'إجمالي النشاط'].join(',');
+    const rows = users.map(u => [
+      u.username || u.email.split('@')[0],
+      u.email,
+      u.is_admin ? 'مسؤول' : 'مستخدم',
+      u.savedCount,
+      u.votedCount,
+      u.commentCount,
+      u.savedCount + u.votedCount + u.commentCount,
+    ].join(','));
+    const csvContent = [header, ...rows].join('\n');
+
+    const summary = [
+      `📊 قائمة مستخدمي مستر جيشو`,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `📅 التاريخ: ${dateStr}`,
+      `👥 إجمالي المستخدمين: ${users.length}`,
+      `🛡️ المسؤولون: ${users.filter(u => u.is_admin).length}`,
+      ``,
+      csvContent,
+      ``,
+      `━━━━━━━━━━━━━━━━━━━━━━`,
+      `🤖 مستر جيشو — mistergisho.app`,
+    ].join('\n');
+
+    try {
+      await Share.share({
+        message: summary,
+        title: `مستخدمو مستر جيشو — ${dateStr}`,
+      });
+    } catch (e) { console.warn(e); }
+    setExporting(false);
+  }, [users]);
 
   // Check admin
   useEffect(() => {
@@ -211,6 +253,16 @@ export default function AdminUsersScreen() {
           <Text style={[s.title, { color: theme.textPrimary }]}>إدارة المستخدمين</Text>
           <Text style={[s.sub, { color: theme.textMuted }]}>{filtered.length} / {users.length} مستخدم</Text>
         </View>
+        <Pressable
+          onPress={handleExportCSV}
+          disabled={exporting || users.length === 0}
+          style={[s.iconBtn, { backgroundColor: theme.primary + '18', borderColor: theme.primary + '40', opacity: users.length === 0 ? 0.4 : 1 }]}
+        >
+          {exporting
+            ? <ActivityIndicator size="small" color={theme.primary} />
+            : <MaterialIcons name="share" size={18} color={theme.primary} />
+          }
+        </Pressable>
       </View>
 
       {/* Search */}

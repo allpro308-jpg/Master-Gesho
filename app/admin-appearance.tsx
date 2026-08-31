@@ -178,6 +178,15 @@ export default function AppearanceStudio() {
   }
 
   const activeTheme = themes.find(t => t.isActive);
+  // Scheduled themes: published, not active, with start_at
+  const scheduledThemes = useMemo(() => themes.filter(t => !t.isActive && t.status === 'published'), [themes]);
+
+  // Countdown hook per scheduled theme
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <SafeAreaView edges={['top']} style={s.container}>
@@ -237,8 +246,102 @@ export default function AppearanceStudio() {
           </Animated.View>
         )}
 
-        {/* All Themes */}
-        <Text style={[s.sectionTitle, { color: theme.textPrimary }]}>جميع الثيمات</Text>
+        {/* Scheduled Themes Section */}
+        {scheduledThemes.length > 0 && (
+          <>
+            <Text style={[s.sectionTitle, { color: theme.textPrimary }]}>⏰ الثيمات المجدولة</Text>
+            {scheduledThemes.map((t, i) => {
+              // Fetch start_at/end_at from DB raw — not in AppTheme type yet, so safe-cast
+              const raw = t as any;
+              const startAt = raw.start_at ? new Date(raw.start_at) : null;
+              const endAt = raw.end_at ? new Date(raw.end_at) : null;
+              const msUntilStart = startAt ? startAt.getTime() - now : null;
+              const msUntilEnd = endAt ? endAt.getTime() - now : null;
+
+              const formatCountdown = (ms: number) => {
+                if (ms <= 0) return 'تفعيل وشيك ...';
+                const d = Math.floor(ms / 86400000);
+                const h = Math.floor((ms % 86400000) / 3600000);
+                const m = Math.floor((ms % 3600000) / 60000);
+                const s = Math.floor((ms % 60000) / 1000);
+                if (d > 0) return `${d}ي ${h}س`;
+                if (h > 0) return `${h}س ${m}د`;
+                return `${m}د ${s}ث`;
+              };
+
+              return (
+                <Animated.View key={t.id} entering={FadeInDown.duration(280).delay(i * 40)}>
+                  <View style={[s.themeCard, { backgroundColor: theme.surface, borderColor: '#F59E0B50', borderWidth: 1.5 }]}>
+                    {/* Color Preview */}
+                    <View style={[s.colorPreview, { backgroundColor: t.tokens.background || '#F8FAFC' }]}>
+                      <View style={s.colorRow}>
+                        {[t.tokens.primary, t.tokens.surface, t.tokens.textPrimary].map((c, ci) => (
+                          <View key={ci} style={[s.colorChip, { backgroundColor: String(c) }]} />
+                        ))}
+                      </View>
+                      <View style={[s.darkBadge, { backgroundColor: '#F59E0B90' }]}>
+                        <MaterialIcons name="schedule" size={10} color="#FFF" />
+                      </View>
+                    </View>
+                    {/* Info */}
+                    <View style={s.themeInfo}>
+                      <View style={s.themeNameRow}>
+                        <Text style={[s.themeName, { color: theme.textPrimary }]} numberOfLines={1}>{t.name}</Text>
+                        <View style={[s.statusChip, { backgroundColor: '#F59E0B20' }]}>
+                          <Text style={[s.statusText, { color: '#F59E0B' }]}>مجدول</Text>
+                        </View>
+                      </View>
+                      {/* Countdown timers */}
+                      <View style={{ gap: 4, marginTop: 4 }}>
+                        {startAt && msUntilStart !== null && msUntilStart > 0 && (
+                          <View style={[sched.countdownRow, { backgroundColor: '#10B98112', borderColor: '#10B98130' }]}>
+                            <MaterialIcons name="play-arrow" size={12} color="#10B981" />
+                            <Text style={[sched.countdownLabel, { color: theme.textMuted }]}>يبدأ خلال:</Text>
+                            <Text style={[sched.countdownValue, { color: '#10B981' }]}>{formatCountdown(msUntilStart)}</Text>
+                            <Text style={[sched.countdownDate, { color: theme.textMuted }]}>
+                              {startAt.toLocaleDateString('ar-EG')}
+                            </Text>
+                          </View>
+                        )}
+                        {endAt && msUntilEnd !== null && (
+                          <View style={[sched.countdownRow, { backgroundColor: '#EF444412', borderColor: '#EF444430' }]}>
+                            <MaterialIcons name="stop" size={12} color="#EF4444" />
+                            <Text style={[sched.countdownLabel, { color: theme.textMuted }]}>ينتهي خلال:</Text>
+                            <Text style={[sched.countdownValue, { color: '#EF4444' }]}>
+                              {msUntilEnd > 0 ? formatCountdown(msUntilEnd) : 'انتهى'}
+                            </Text>
+                            <Text style={[sched.countdownDate, { color: theme.textMuted }]}>
+                              {endAt.toLocaleDateString('ar-EG')}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      {/* Actions */}
+                      <View style={s.themeActions}>
+                        <Pressable
+                          onPress={() => router.push((`/admin-theme-builder?id=${t.id}`) as any)}
+                          style={[s.iconAction, { backgroundColor: theme.background, borderColor: theme.border }]}
+                        >
+                          <MaterialIcons name="edit" size={15} color={theme.textSecondary} />
+                        </Pressable>
+                        <Pressable
+                          onPress={() => handleActivate(t)}
+                          disabled={activating === t.id}
+                          style={[s.activateBtn, { backgroundColor: theme.primary }]}
+                        >
+                          {activating === t.id
+                            ? <ActivityIndicator size="small" color="#FFF" />
+                            : <><MaterialIcons name="bolt" size={13} color="#FFF" /><Text style={s.activateBtnText}>تفعيل فوري</Text></>
+                          }
+                        </Pressable>
+                      </View>
+                    </View>
+                  </View>
+                </Animated.View>
+              );
+            })}
+          </>
+        )}
         {themes.map((t, i) => (
           <Animated.View key={t.id} entering={FadeInDown.duration(280).delay(i * 40)}>
             <View style={[s.themeCard, { backgroundColor: theme.surface, borderColor: t.isActive ? theme.primary + '50' : theme.border }]}>
@@ -398,6 +501,13 @@ const imp = StyleSheet.create({
   exampleTitle: { fontSize: 11, fontFamily: 'Cairo_500Medium' },
   code: { borderRadius: 12, borderWidth: 1, padding: 12 },
   codeText: { fontSize: 11, fontFamily: 'Cairo_400Regular', lineHeight: 18 },
+});
+
+const sched = StyleSheet.create({
+  countdownRow: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 9999, borderWidth: 1, flexWrap: 'wrap' },
+  countdownLabel: { fontSize: 10, fontFamily: 'Cairo_400Regular' },
+  countdownValue: { fontSize: 11, fontFamily: 'Cairo_700Bold' },
+  countdownDate: { fontSize: 9, fontFamily: 'Cairo_400Regular', marginRight: 'auto' as any },
 });
 
 const createStyles = (theme: any) => StyleSheet.create({

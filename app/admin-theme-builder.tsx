@@ -91,6 +91,10 @@ export default function ThemeBuilder() {
   const [description, setDescription] = useState('');
   const [darkMode, setDarkMode] = useState(false);
   const [tokens, setTokens] = useState<DbThemeTokens>({ ...DEFAULT_TOKENS });
+  // Schedule fields
+  const [startAt, setStartAt] = useState('');
+  const [endAt, setEndAt] = useState('');
+  const [showScheduleSection, setShowScheduleSection] = useState(false);
   const isEdit = !!id;
 
   const s = useMemo(() => createStyles(theme), [theme]);
@@ -103,12 +107,19 @@ export default function ThemeBuilder() {
 
   useEffect(() => {
     if (!id) { setLoading(false); return; }
-    fetchThemeById(id).then(t => {
+    fetchThemeById(id).then(async t => {
       if (t) {
         setName(t.name);
         setDescription(t.description);
         setDarkMode(t.darkMode);
         setTokens(t.tokens);
+        // Load schedule fields from DB
+        const { data: raw } = await getSupabaseClient()
+          .from('app_themes').select('start_at, end_at').eq('id', id).single();
+        if (raw) {
+          setStartAt(raw.start_at ? new Date(raw.start_at).toISOString().slice(0, 16) : '');
+          setEndAt(raw.end_at ? new Date(raw.end_at).toISOString().slice(0, 16) : '');
+        }
       }
       setLoading(false);
     });
@@ -118,9 +129,25 @@ export default function ThemeBuilder() {
     setTokens(prev => ({ ...prev, [key]: val }));
   }, []);
 
+  const saveSchedule = useCallback(async (themeId: string) => {
+    const updates: any = {};
+    if (startAt) updates.start_at = new Date(startAt).toISOString();
+    else updates.start_at = null;
+    if (endAt) updates.end_at = new Date(endAt).toISOString();
+    else updates.end_at = null;
+    if (Object.keys(updates).length > 0) {
+      await getSupabaseClient().from('app_themes').update(updates).eq('id', themeId);
+    }
+  }, [startAt, endAt]);
+
   const handleSave = useCallback(async (publish = false) => {
     if (!user?.id || !isAdmin) return;
     if (!name.trim()) { showAlert('خطأ', 'يرجى إدخال اسم الثيم'); return; }
+    // Validate schedule dates
+    if (startAt && endAt && new Date(startAt) >= new Date(endAt)) {
+      showAlert('خطأ في الجدولة', 'تاريخ الانتهاء يجب أن يكون بعد تاريخ البدء');
+      return;
+    }
 
     setSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -128,23 +155,27 @@ export default function ThemeBuilder() {
     if (isEdit) {
       const { error } = await updateThemeTokens(id!, { name, description, darkMode, tokens }, user.id);
       if (error) { showAlert('خطأ', error); }
-      else if (publish) {
-        await publishTheme(id!, user.id);
-        showAlert('تم النشر', 'تم نشر الثيم بنجاح');
-      } else {
-        showAlert('تم الحفظ', 'تم حفظ التغييرات');
+      else {
+        await saveSchedule(id!);
+        if (publish) {
+          await publishTheme(id!, user.id);
+          showAlert('تم النشر', startAt ? `تم نشر الثيم مجدولاً للبدء في ${new Date(startAt).toLocaleDateString('ar-EG')}` : 'تم نشر الثيم بنجاح');
+        } else {
+          showAlert('تم الحفظ', 'تم حفظ التغييرات والجدول الزمني');
+        }
       }
     } else {
       const { id: newId, error } = await createTheme({ name, description, darkMode, tokens }, user.id);
       if (error) { showAlert('خطأ', error); }
       else {
+        if (newId) await saveSchedule(newId);
         if (publish && newId) await publishTheme(newId, user.id);
         showAlert('تم', publish ? 'تم إنشاء الثيم ونشره' : 'تم إنشاء الثيم كمسودة');
         router.back();
       }
     }
     setSaving(false);
-  }, [user?.id, isAdmin, name, description, darkMode, tokens, isEdit, id, router, showAlert]);
+  }, [user?.id, isAdmin, name, description, darkMode, tokens, isEdit, id, router, showAlert, saveSchedule, startAt, endAt]);
 
   if (loading || isAdmin === null) {
     return (
@@ -232,6 +263,114 @@ export default function ThemeBuilder() {
           </View>
         </Animated.View>
 
+        {/* ─── Schedule Section ─── */}
+        <Animated.View entering={FadeInDown.duration(300).delay(80)} style={s.section}>
+          <Pressable
+            onPress={() => { Haptics.selectionAsync(); setShowScheduleSection(v => !v); }}
+            style={[s.scheduleToggleRow, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          >
+            <View style={[s.scheduleIconBg, { backgroundColor: '#F59E0B18' }]}>
+              <MaterialIcons name="schedule" size={18} color="#F59E0B" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.toggleLabel, { color: theme.textPrimary }]}>جدولة الثيم</Text>
+              <Text style={[s.toggleDesc, { color: theme.textMuted }]}>
+                {startAt ? `يبدأ: ${new Date(startAt).toLocaleDateString('ar-EG')}` : 'تفعيل/إيقاف تلقائي حسب موعد'}
+              </Text>
+            </View>
+            <MaterialIcons
+              name={showScheduleSection ? 'keyboard-arrow-up' : 'keyboard-arrow-down'}
+              size={22} color={theme.textMuted}
+            />
+          </Pressable>
+
+          {showScheduleSection && (
+            <Animated.View entering={FadeInDown.duration(240)} style={[s.scheduleCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              {/* Info banner */}
+              <View style={[s.scheduleInfo, { backgroundColor: '#F59E0B12', borderColor: '#F59E0B30' }]}>
+                <MaterialIcons name="info-outline" size={14} color="#F59E0B" />
+                <Text style={{ fontSize: 11, fontFamily: 'Cairo_400Regular', color: theme.textSecondary, flex: 1, lineHeight: 18 }}>
+                  عند النشر، يُفعَّل الثيم تلقائياً في تاريخ البدء ويُلغى في تاريخ الانتهاء عبر الـ Edge Function المجدولة.
+                </Text>
+              </View>
+
+              {/* Start Date */}
+              <View style={s.dateFieldGroup}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <MaterialIcons name="play-arrow" size={14} color="#10B981" />
+                  <Text style={[s.dateLabel, { color: theme.textPrimary }]}>تاريخ البدء</Text>
+                  {startAt ? (
+                    <Pressable onPress={() => setStartAt('')} style={s.clearDateBtn}>
+                      <MaterialIcons name="close" size={12} color="#EF4444" />
+                    </Pressable>
+                  ) : null}
+                </View>
+                <TextInput
+                  value={startAt}
+                  onChangeText={setStartAt}
+                  placeholder="YYYY-MM-DDTHH:MM مثال: 2027-03-01T00:00"
+                  placeholderTextColor={theme.textMuted}
+                  style={[s.dateInput, { backgroundColor: theme.background, borderColor: startAt ? '#10B981' : theme.border, color: theme.textPrimary }]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="numbers-and-punctuation"
+                />
+                {startAt && (() => {
+                  try { return <Text style={[s.datePreview, { color: '#10B981' }]}>{new Date(startAt).toLocaleString('ar-EG', { dateStyle: 'full', timeStyle: 'short' })}</Text>; }
+                  catch { return null; }
+                })()}
+              </View>
+
+              {/* End Date */}
+              <View style={s.dateFieldGroup}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <MaterialIcons name="stop" size={14} color="#EF4444" />
+                  <Text style={[s.dateLabel, { color: theme.textPrimary }]}>تاريخ الانتهاء</Text>
+                  {endAt ? (
+                    <Pressable onPress={() => setEndAt('')} style={s.clearDateBtn}>
+                      <MaterialIcons name="close" size={12} color="#EF4444" />
+                    </Pressable>
+                  ) : null}
+                </View>
+                <TextInput
+                  value={endAt}
+                  onChangeText={setEndAt}
+                  placeholder="YYYY-MM-DDTHH:MM (اختياري — للعودة التلقائية)"
+                  placeholderTextColor={theme.textMuted}
+                  style={[s.dateInput, { backgroundColor: theme.background, borderColor: endAt ? '#EF4444' : theme.border, color: theme.textPrimary }]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="numbers-and-punctuation"
+                />
+                {endAt && (() => {
+                  try { return <Text style={[s.datePreview, { color: '#EF4444' }]}>{new Date(endAt).toLocaleString('ar-EG', { dateStyle: 'full', timeStyle: 'short' })}</Text>; }
+                  catch { return null; }
+                })()}
+              </View>
+
+              {/* Schedule summary */}
+              {startAt && (
+                <View style={[s.scheduleSummary, { backgroundColor: theme.primary + '10', borderColor: theme.primary + '30' }]}>
+                  <MaterialIcons name="event" size={14} color={theme.primary} />
+                  <Text style={{ fontSize: 12, fontFamily: 'Cairo_500Medium', color: theme.textSecondary, flex: 1 }}>
+                    يُفعَّل الثيم في{' '}
+                    <Text style={{ color: theme.primary, fontFamily: 'Cairo_700Bold' }}>
+                      {(() => { try { return new Date(startAt).toLocaleDateString('ar-EG'); } catch { return startAt; } })()}
+                    </Text>
+                    {endAt ? (
+                      <Text> ويعود في{' '}
+                        <Text style={{ color: '#EF4444', fontFamily: 'Cairo_700Bold' }}>
+                          {(() => { try { return new Date(endAt).toLocaleDateString('ar-EG'); } catch { return endAt; } })()}
+                        </Text>
+                      </Text>
+                    ) : ' (بدون انتهاء تلقائي)'}
+                  </Text>
+                </View>
+              )}
+            </Animated.View>
+          )}
+        </Animated.View>
+
         {/* Color Tokens */}
         <Animated.View entering={FadeInDown.duration(300).delay(100)} style={s.section}>
           <Text style={[s.sectionTitle, { color: theme.textPrimary }]}>ألوان الثيم</Text>
@@ -298,6 +437,17 @@ const createStyles = (theme: any) => StyleSheet.create({
   toggleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
   toggleLabel: { fontSize: 14, fontFamily: 'Cairo_600SemiBold' },
   toggleDesc: { fontSize: 11, fontFamily: 'Cairo_400Regular', marginTop: 2 },
+  // Schedule styles
+  scheduleToggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, borderWidth: 1 },
+  scheduleIconBg: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  scheduleCard: { borderRadius: 14, borderWidth: 1, padding: 14, marginTop: 8, gap: 14 },
+  scheduleInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1 },
+  dateFieldGroup: { gap: 4 },
+  dateLabel: { fontSize: 13, fontFamily: 'Cairo_600SemiBold' },
+  clearDateBtn: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#EF444415', alignItems: 'center', justifyContent: 'center' },
+  dateInput: { height: 42, borderRadius: 10, borderWidth: 1, paddingHorizontal: 12, fontSize: 13, fontFamily: 'Cairo_400Regular' },
+  datePreview: { fontSize: 11, fontFamily: 'Cairo_500Medium', marginTop: 3 },
+  scheduleSummary: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 10, borderRadius: 10, borderWidth: 1 },
   colorSection: { borderRadius: 14, borderWidth: 1, paddingHorizontal: 12 },
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
   draftBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 14, borderWidth: 1.5 },

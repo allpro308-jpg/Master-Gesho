@@ -68,6 +68,7 @@ export default function AdminAnalyticsScreen() {
 
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [themeStats, setThemeStats] = useState<{ id: string; name: string; activations: number; isActive: boolean; status: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -88,6 +89,29 @@ export default function AdminAnalyticsScreen() {
       supabase.from('user_votes').select('id', { count: 'exact', head: true }),
       supabase.from('comments').select('id', { count: 'exact', head: true }),
     ]);
+
+    // Theme usage: count activations from audit logs
+    const { data: auditThemeLogs } = await supabase
+      .from('admin_audit_logs')
+      .select('resource_id')
+      .in('action', ['theme_activated', 'scheduled_theme_activated']);
+
+    const { data: allThemesRaw } = await supabase
+      .from('app_themes')
+      .select('id, name, is_active, status');
+
+    const activationMap: Record<string, number> = {};
+    (auditThemeLogs || []).forEach((log: any) => {
+      if (log.resource_id) activationMap[log.resource_id] = (activationMap[log.resource_id] || 0) + 1;
+    });
+    const computedThemeStats = (allThemesRaw || []).map((t: any) => ({
+      id: t.id,
+      name: t.name,
+      activations: activationMap[t.id] || 0,
+      isActive: t.is_active,
+      status: t.status,
+    })).sort((a: any, b: any) => b.activations - a.activations);
+    setThemeStats(computedThemeStats);
 
     const tools = toolsRes.data || [];
     const totalUsers = usersRes.count || 0;
@@ -429,6 +453,63 @@ export default function AdminAnalyticsScreen() {
             </View>
           </Animated.View>
         )}
+
+        {/* Theme Usage Stats */}
+        {themeStats.length > 0 && (
+          <Animated.View entering={FadeInDown.duration(300).delay(300)} style={[s.chartCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <View style={s.chartHeader}>
+              <View style={[s.chartIconBg, { backgroundColor: '#A78BFA20' }]}>
+                <MaterialIcons name="palette" size={18} color="#A78BFA" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.chartTitle, { color: theme.textPrimary }]}>إحصائيات استخدام الثيمات</Text>
+                <Text style={[s.chartSub, { color: theme.textMuted }]}>عدد مرات التفعيل لكل ثيم</Text>
+              </View>
+            </View>
+            {/* Column chart */}
+            <View style={s.columnChart}>
+              {themeStats.slice(0, 6).map((ts, i) => {
+                const maxAct = Math.max(...themeStats.map(x => x.activations), 1);
+                return (
+                  <VBar
+                    key={ts.id}
+                    heightPct={(ts.activations / maxAct) * 100}
+                    color={CHART_COLORS[i % CHART_COLORS.length]}
+                    delay={i * 60}
+                    label={ts.name.slice(0, 7)}
+                    value={ts.activations}
+                  />
+                );
+              })}
+            </View>
+            {/* Ranked list */}
+            {themeStats.map((ts, i) => (
+              <View key={ts.id} style={[s.listRow, { borderBottomColor: theme.border }]}>
+                <View style={[s.rankBadge, { backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + '20' }]}>
+                  <Text style={[s.rankText, { color: CHART_COLORS[i % CHART_COLORS.length] }]}>#{i + 1}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.listItemName, { color: theme.textPrimary }]} numberOfLines={1}>{ts.name}</Text>
+                  <Text style={[s.listItemSub, { color: theme.textMuted }]}>{ts.isActive ? '● نشط الآن' : ts.status}</Text>
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                  <Text style={[s.listItemValue, { color: CHART_COLORS[i % CHART_COLORS.length] }]}>{ts.activations}</Text>
+                  <Text style={[s.listItemSub, { color: theme.textMuted }]}>تفعيل</Text>
+                </View>
+              </View>
+            ))}
+            {/* Most used banner */}
+            {themeStats[0] && (
+              <View style={[s.topThemeBanner, { backgroundColor: theme.primary + '12', borderColor: theme.primary + '30', borderWidth: 1, borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }]}>
+                <MaterialIcons name="star" size={16} color={theme.primary} />
+                <Text style={{ fontSize: 13, fontFamily: 'Cairo_500Medium', color: theme.textPrimary, flex: 1, lineHeight: 20 }}>
+                  الأكثر استخداماً: <Text style={{ color: theme.primary, fontFamily: 'Cairo_700Bold' }}>{themeStats[0].name}</Text>
+                  {' '}({themeStats[0].activations} {themeStats[0].activations === 1 ? 'مرة' : 'مرات'})
+                </Text>
+              </View>
+            )}
+          </Animated.View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -464,6 +545,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   barLabel: { width: 80, fontSize: 12, fontFamily: 'Cairo_500Medium' },
   barValue: { fontSize: 12, fontFamily: 'Cairo_700Bold', width: 28, textAlign: 'right' },
   emptyTitle: { fontSize: 18, fontFamily: 'Cairo_700Bold' },
+  topThemeBanner: {},
   backBtn: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   backBtnText: { fontSize: 14, fontFamily: 'Cairo_700Bold', color: '#FFF' },
 });

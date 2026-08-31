@@ -156,6 +156,14 @@ export async function submitTool(params: {
     is_new: true,
   });
   if (error) { console.error('submitTool error:', error); throw error; }
+  // Notify admins via edge function (fire-and-forget)
+  try {
+    await supabase.functions.invoke('notify-pending-tool', {
+      body: { tool_id: id, tool_name: params.name, submitted_by: params.userId },
+    });
+  } catch (fnErr) {
+    console.warn('notify-pending-tool edge function error (non-critical):', fnErr);
+  }
   return id;
 }
 
